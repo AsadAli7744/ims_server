@@ -50,6 +50,7 @@ import { RbacModule } from './rbac/rbac.module';
 import { AuthGuard } from './rbac/guards/auth.guard';
 import { RolesGuard } from './rbac/guards/roles.guard';
 import { PermissionsGuard } from './rbac/guards/permissions.guard';
+import { getTypeOrmConfig } from './config/database.config';
 
 const ALL_ENTITIES = [
   Shop, Store, Category, Company, Item, Sale, SaleItem, Order, OrderItem,
@@ -58,60 +59,9 @@ const ALL_ENTITIES = [
   UserPermission,
 ];
 
-// Get database configuration
-function getTypeOrmConfig() {
-  let databaseUrl = process.env.DATABASE_URL;
-
-  console.log('DATABASE_URL exists:', !!databaseUrl);
-  console.log('DATABASE_URL starts with postgres:', databaseUrl?.startsWith('postgres'));
-
-  // If DATABASE_URL is a full connection string, use it directly
-  if (databaseUrl && (databaseUrl.startsWith('postgresql://') || databaseUrl.startsWith('postgres://'))) {
-    // Replace Railway internal domain with public domain for local development
-    // Railway internal: postgres.railway.internal
-    // Railway public: postgres-production-33ca.up.railway.app (from your dashboard)
-    if (databaseUrl.includes('postgres.railway.internal')) {
-      // Use public domain instead - update this to match your Railway public domain
-      const publicDomain = process.env.RAILWAY_PUBLIC_HOST || 'postgres-production-33ca.up.railway.app';
-      databaseUrl = databaseUrl.replace('postgres.railway.internal', publicDomain);
-      console.log('Replaced Railway internal domain with public domain');
-    }
-
-    console.log('Using full DATABASE_URL connection string');
-    return {
-      type: 'postgres' as const,
-      url: databaseUrl,
-      entities: ALL_ENTITIES,
-      synchronize: true, // Set to false in production
-    };
-  }
-
-  // Otherwise, use individual configuration
-  const config = {
-    type: 'postgres' as const,
-    host: process.env.DB_HOST || databaseUrl || 'localhost',
-    port: process.env.DB_PORT ? parseInt(process.env.DB_PORT) : 5432,
-    username: process.env.DB_USERNAME || 'postgres',
-    password: (process.env.DB_PASSWORD || '').toString(),
-    database: process.env.DB_DATABASE || 'ims',
-    entities: ALL_ENTITIES,
-    synchronize: true, // Set to false in production
-  };
-
-  console.log('Using individual config:', {
-    host: config.host,
-    port: config.port,
-    username: config.username,
-    database: config.database,
-    hasPassword: !!config.password && config.password.length > 0,
-  });
-
-  return config;
-}
-
 @Module({
   imports: [
-    TypeOrmModule.forRoot(getTypeOrmConfig()),
+    TypeOrmModule.forRoot(getTypeOrmConfig(ALL_ENTITIES)),
     ShopsModule,
     StoresModule,
     CompaniesModule,

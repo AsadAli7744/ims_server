@@ -1,51 +1,20 @@
 import { DataSource } from 'typeorm';
-import { config } from 'dotenv';
 import { seedUsers } from './users.seed';
 import { User } from '../entities/user.entity';
 import { Tenant } from '../../tenants/entities/tenant.entity';
 import { Shop } from '../../shops/entities/shop.entity';
 import { Store } from '../../stores/entities/store.entity';
-
-// Load environment variables
-config();
+import { getTypeOrmConfig } from '../../config/database.config';
 
 const SEED_ENTITIES = [User, Tenant, Shop, Store];
 
-function getDatabaseConfig() {
-  let databaseUrl = process.env.DATABASE_URL;
-
-  // If DATABASE_URL is a full connection string, use it directly
-  if (databaseUrl && (databaseUrl.startsWith('postgresql://') || databaseUrl.startsWith('postgres://'))) {
-    return {
-      type: 'postgres' as const,
-      url: databaseUrl,
-      entities: SEED_ENTITIES,
-      synchronize: false,
-    };
-  }
-
-  // Otherwise, use individual configuration
-  return {
-    type: 'postgres' as const,
-    host: process.env.DB_HOST || databaseUrl || 'localhost',
-    port: process.env.DB_PORT ? parseInt(process.env.DB_PORT) : 5432,
-    username: process.env.DB_USERNAME || 'postgres',
-    password: (process.env.DB_PASSWORD || '').toString(),
-    database: process.env.DB_DATABASE || 'ims',
-    entities: SEED_ENTITIES,
-    synchronize: false,
-  };
-}
-
 async function runSeed() {
-  const dataSource = new DataSource(getDatabaseConfig());
+  const dataSource = new DataSource(getTypeOrmConfig(SEED_ENTITIES) as any);
 
   try {
     await dataSource.initialize();
     console.log('Database connected');
-
     await seedUsers(dataSource);
-
     await dataSource.destroy();
     console.log('Seed completed successfully');
     process.exit(0);
