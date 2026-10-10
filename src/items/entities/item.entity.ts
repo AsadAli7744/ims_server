@@ -1,6 +1,7 @@
 import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, JoinColumn, ManyToMany, JoinTable, OneToMany, CreateDateColumn } from 'typeorm';
 import { Company } from '../../companies/entities/company.entity';
 import { Category } from '../../category/entities/category.entity';
+import { ItemType } from '../../item-types/entities/item-type.entity';
 import { Store } from '../../stores/entities/store.entity';
 import { Shop } from '../../shops/entities/shop.entity';
 import { User } from '../../users/entities/user.entity';
@@ -34,6 +35,10 @@ export class Item {
   @ManyToOne(() => Shop, { nullable: true })
   @JoinColumn({ name: 'shop_id' })
   shop: Shop | null;
+
+  @ManyToOne(() => ItemType, { nullable: true })
+  @JoinColumn({ name: 'item_type_id' })
+  itemType: ItemType | null;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
   location: string | null;

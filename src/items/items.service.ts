@@ -6,6 +6,7 @@ import { UpdateItemDto } from './dto/update-item.dto';
 import { Item } from './entities/item.entity';
 import { Company } from '../companies/entities/company.entity';
 import { Category } from '../category/entities/category.entity';
+import { ItemType } from '../item-types/entities/item-type.entity';
 import { Store } from '../stores/entities/store.entity';
 import { Shop } from '../shops/entities/shop.entity';
 import { PurchasesService } from '../purchases/purchases.service';
@@ -13,6 +14,8 @@ import { FifoService } from '../stock-lots/fifo.service';
 import { paginateQuery } from '../common/pagination.util';
 import { assertShopAccess, assertStoreAccess, canAccessOptionalShopRecord, requireSuperAdmin, requireTenantId, requireUser, skipsShopFilter, stampOwnership, tenantWhere } from '../common/access.util';
 import { isItemCondition, normalizeUniqueIdentifier, SECOND_HAND_CONDITIONS } from './item-condition';
+
+const ITEM_RELATIONS = ['company', 'categories', 'store', 'shop', 'itemType'];
 
 @Injectable()
 export class ItemsService {
@@ -32,6 +35,31 @@ export class ItemsService {
     private fifoService: FifoService,
     private dataSource: DataSource,
   ) {}
+
+  private async resolveItemType(
+    em: EntityManager,
+    itemTypeId: number | null | undefined,
+    shopId?: number | null,
+  ): Promise<ItemType | null> {
+    if (itemTypeId == null || itemTypeId === undefined) {
+      return null;
+    }
+    const typeId = Number(itemTypeId);
+    if (!typeId) {
+      return null;
+    }
+    const itemType = await em.getRepository(ItemType).findOne({
+      where: tenantWhere({ id: typeId, is_archived: false }),
+      relations: ['shop'],
+    });
+    if (!itemType) {
+      throw new BadRequestException('Item type not found');
+    }
+    if (shopId && itemType.shop?.id && Number(itemType.shop.id) !== Number(shopId)) {
+      throw new BadRequestException('Item type does not belong to this shop');
+    }
+    return itemType;
+  }
 
   async create(createItemDto: CreateItemDto): Promise<Item> {
     if (!createItemDto.name || !createItemDto.name.trim()) {
@@ -101,6 +129,10 @@ export class ItemsService {
         }
       }
 
+      if (createItemDto.itemTypeId !== undefined && createItemDto.itemTypeId !== null) {
+        item.itemType = await this.resolveItemType(em, createItemDto.itemTypeId, createItemDto.shopId || item.shop?.id);
+      }
+
       const savedItem = await itemRepo.save(item);
       const openingQty = createItemDto.quantity || 0;
       if (openingQty > 0) {
@@ -115,7 +147,7 @@ export class ItemsService {
 
       const result = await itemRepo.findOne({
         where: { id: savedItem.id },
-        relations: ['company', 'categories', 'store', 'shop'],
+        relations: ITEM_RELATIONS,
       });
       if (!result) {
         throw new BadRequestException('Failed to reload item after creation');
@@ -135,6 +167,7 @@ export class ItemsService {
     condition?: string,
     companyId?: number,
     categoryId?: number,
+    itemTypeId?: number,
   ) {
     const user = requireUser();
     const queryBuilder = this.itemsRepository.createQueryBuilder('item')
@@ -142,6 +175,7 @@ export class ItemsService {
       .leftJoinAndSelect('item.categories', 'categories')
       .leftJoinAndSelect('item.store', 'store')
       .leftJoinAndSelect('item.shop', 'shop')
+      .leftJoinAndSelect('item.itemType', 'itemType')
       .where('item.is_archived = :archived', { archived: false });
 
     const scoped = tenantWhere();
@@ -196,6 +230,9 @@ export class ItemsService {
         WHERE ic.item_id = item.id AND ic.category_id = :categoryId
       )`, { categoryId });
     }
+    if (itemTypeId) {
+      queryBuilder.andWhere('item.item_type_id = :itemTypeId', { itemTypeId });
+    }
 
     if (dates?.date) {
       queryBuilder.andWhere('DATE(item.createdAt) = DATE(:date)', { date: dates.date });
@@ -215,7 +252,7 @@ export class ItemsService {
   async findOne(id: number): Promise<any> {
     const item = await this.itemsRepository.findOne({
       where: tenantWhere({ id, is_archived: false }),
-      relations: ['company', 'categories', 'store', 'shop'],
+      relations: ITEM_RELATIONS,
     });
     if (!item || !canAccessOptionalShopRecord(item.shop?.id)) {
       return null;
@@ -251,7 +288,7 @@ export class ItemsService {
 
       const item = await itemRepo.findOne({
         where: tenantWhere({ id, is_archived: false }),
-        relations: ['company', 'categories', 'store', 'shop'],
+        relations: ITEM_RELATIONS,
       });
 
       if (!item || !canAccessOptionalShopRecord(item.shop?.id)) {
@@ -328,6 +365,12 @@ export class ItemsService {
         }
       }
 
+      if (updateItemDto.itemTypeId !== undefined) {
+        item.itemType = updateItemDto.itemTypeId
+          ? await this.resolveItemType(em, updateItemDto.itemTypeId, item.shop?.id)
+          : null;
+      }
+
       await itemRepo.save(item);
 
       if (updateItemDto.quantity !== undefined) {
@@ -350,7 +393,7 @@ export class ItemsService {
 
       const result = await itemRepo.findOne({
         where: { id, is_archived: false },
-        relations: ['company', 'categories', 'store', 'shop'],
+        relations: ITEM_RELATIONS,
       });
       return result;
     });
@@ -382,7 +425,7 @@ export class ItemsService {
     assertStoreAccess(store);
     return this.itemsRepository.find({
       where: tenantWhere({ store: { id: storeId }, is_archived: false }),
-      relations: ['company', 'categories', 'store', 'shop'],
+      relations: ITEM_RELATIONS,
     });
   }
 
@@ -390,7 +433,7 @@ export class ItemsService {
     assertShopAccess(shopId);
     return this.itemsRepository.find({
       where: tenantWhere({ shop: { id: shopId }, is_archived: false }),
-      relations: ['company', 'categories', 'store', 'shop'],
+      relations: ITEM_RELATIONS,
     });
   }
 
@@ -414,7 +457,7 @@ export class ItemsService {
 
       const sourceItem = await itemRepo.findOne({
         where: tenantWhere({ id: transferDto.itemId, is_archived: false }),
-        relations: ['store', 'shop', 'company', 'categories'],
+        relations: ['store', 'shop', 'company', 'categories', 'itemType', 'itemType.shop'],
       });
 
       if (!sourceItem || !canAccessOptionalShopRecord(sourceItem.shop?.id)) {
@@ -480,7 +523,7 @@ export class ItemsService {
             store: { id: destinationStore.id },
             is_archived: false,
           }),
-          relations: ['company', 'categories', 'store', 'shop'],
+          relations: ITEM_RELATIONS,
         });
       } else if (destinationShop) {
         destinationItem = await itemRepo.findOne({
@@ -489,7 +532,7 @@ export class ItemsService {
             shop: { id: destinationShop.id },
             is_archived: false,
           }),
-          relations: ['company', 'categories', 'store', 'shop'],
+          relations: ITEM_RELATIONS,
         });
       }
 
@@ -517,6 +560,9 @@ export class ItemsService {
           name: sourceItem.name,
           company: sourceItem.company,
           categories: sourceItem.categories,
+          itemType: destinationShop && sourceItem.itemType?.shop?.id === destinationShop.id
+            ? sourceItem.itemType
+            : null,
           store: destinationStore,
           shop: destinationShop,
           location: sourceItem.location,

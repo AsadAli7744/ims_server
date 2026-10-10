@@ -16,10 +16,12 @@ import { OrdersModule } from './orders/orders.module';
 import { PurchasesModule } from './purchases/purchases.module';
 import { ExpenseModule } from './expense/expense.module';
 import { CategoryModule } from './category/category.module';
+import { ItemTypesModule } from './item-types/item-types.module';
 import { IssuesModule } from './issues/issues.module';
 import { Shop } from './shops/entities/shop.entity';
 import { Store } from './stores/entities/store.entity';
 import { Category } from './category/entities/category.entity';
+import { ItemType } from './item-types/entities/item-type.entity';
 import { Company } from './companies/entities/company.entity';
 import { Item } from './items/entities/item.entity';
 import { Sale } from './sales/entities/sale.entity';
@@ -53,7 +55,7 @@ import { PermissionsGuard } from './rbac/guards/permissions.guard';
 import { getTypeOrmConfig } from './config/database.config';
 
 const ALL_ENTITIES = [
-  Shop, Store, Category, Company, Item, Sale, SaleItem, Order, OrderItem,
+  Shop, Store, Category, ItemType, Company, Item, Sale, SaleItem, Order, OrderItem,
   Purchase, Expense, Issue, User, StockLot, StockAllocation, Tenant,
   Customer, Seller, SalePayment, ServiceJob, ServicePayment, InstallmentPlan, InstallmentDue,
   UserPermission,
@@ -75,6 +77,7 @@ const ALL_ENTITIES = [
     PurchasesModule,
     ExpenseModule,
     CategoryModule,
+    ItemTypesModule,
     IssuesModule,
     StockLotsModule,
     AuthModule,

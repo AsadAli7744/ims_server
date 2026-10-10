@@ -19,6 +19,10 @@ export class NewCustomerDto {
   @IsOptional()
   @IsString()
   address?: string;
+
+  @IsOptional()
+  @IsString()
+  cnic?: string;
 }
 
 export class CreateSaleDto {

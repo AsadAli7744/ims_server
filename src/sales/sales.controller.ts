@@ -28,6 +28,11 @@ export class SalesController {
     return this.salesService.getTotals(filterDto, shopId ? +shopId : undefined);
   }
 
+  @Get('totals-by-type')
+  async getTotalsByType(@Query() filterDto: FilterDto, @Query('shopId') shopId?: string) {
+    return this.salesService.getTotalsByType(filterDto, shopId ? +shopId : undefined);
+  }
+
   @Get(':id')
   async findOne(@Param('id') id: string) {
     const sale = await this.salesService.findOne(+id);

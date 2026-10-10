@@ -5,6 +5,7 @@ import { ItemsController } from './items.controller';
 import { Item } from './entities/item.entity';
 import { Company } from '../companies/entities/company.entity';
 import { Category } from '../category/entities/category.entity';
+import { ItemType } from '../item-types/entities/item-type.entity';
 import { Store } from '../stores/entities/store.entity';
 import { Shop } from '../shops/entities/shop.entity';
 import { PurchasesModule } from '../purchases/purchases.module';
@@ -12,7 +13,7 @@ import { StockLotsModule } from '../stock-lots/stock-lots.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Item, Company, Category, Store, Shop]),
+    TypeOrmModule.forFeature([Item, Company, Category, ItemType, Store, Shop]),
     forwardRef(() => PurchasesModule),
     StockLotsModule,
   ],

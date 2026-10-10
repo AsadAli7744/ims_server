@@ -41,6 +41,7 @@ export class ItemsController {
     @Query('condition') condition?: string,
     @Query('companyId') companyId?: string,
     @Query('categoryId') categoryId?: string,
+    @Query('itemTypeId') itemTypeId?: string,
   ) {
     const type = Array.isArray(filterType) ? filterType[0] : filterType;
     return this.itemsService.findAll(
@@ -54,6 +55,7 @@ export class ItemsController {
       condition,
       companyId ? +companyId : undefined,
       categoryId ? +categoryId : undefined,
+      itemTypeId ? +itemTypeId : undefined,
     );
   }
 

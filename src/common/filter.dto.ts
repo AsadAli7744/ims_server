@@ -25,6 +25,15 @@ export class FilterDto extends PaginationDto {
   dueToday?: string;
 
   @IsOptional()
+  promisesOnly?: string;
+
+  @IsOptional()
+  promiseStatus?: string;
+
+  @IsOptional()
+  installmentsOnly?: string;
+
+  @IsOptional()
   customerId?: string;
 
   @IsOptional()
@@ -44,4 +53,7 @@ export class FilterDto extends PaginationDto {
 
   @IsOptional()
   categoryId?: string;
+
+  @IsOptional()
+  itemTypeId?: string;
 }

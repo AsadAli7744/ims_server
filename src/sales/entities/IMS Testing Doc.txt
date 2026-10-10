@@ -1,0 +1,16 @@
+I added a lasting Audit Demo Retail org and did not delete any of it.
+
+Logins
+
+Super Admin: admin@example.com / admin123 — pick Audit Demo Retail in the org dropdown
+Org admin: audit.admin@example.com / audit123
+Shop staff: audit.staff@example.com / audit123 — Downtown shop only
+What is in that org: Downtown + Mall shops, two stores, 5 items with stock, purchases, 3 sales, 3 expenses, plus category Audit Batteries created from the form.
+
+Highest-impact issues to retest yourself
+
+Dashboard can show org-wide totals even after a shop is selected.
+Items “Store only” filter does not stick in the UI (API is correct).
+Shop staff can still see warehouse items.
+Expense list date filters do not actually filter the table.
+Passwords stored in plaintext, default token secret, synchronize: true.

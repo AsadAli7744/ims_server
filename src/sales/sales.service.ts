@@ -165,18 +165,65 @@ export class SalesService {
   }
 
   private applyListFilters(queryBuilder: ReturnType<Repository<Sale>['createQueryBuilder']>, filterDto?: FilterDto) {
+    const promisesOnly = filterDto?.promisesOnly === 'true' || filterDto?.promisesOnly === '1';
+    const installmentsOnly = filterDto?.installmentsOnly === 'true' || filterDto?.installmentsOnly === '1';
+    const dueDateColumn = promisesOnly
+      ? 'sale.promiseDate'
+      : installmentsOnly
+        ? 'sale.nextDueDate'
+        : null;
+
+    if (promisesOnly) {
+      queryBuilder.andWhere('sale.paymentStatus != :promisePaidStatus', { promisePaidStatus: 'completed' });
+      queryBuilder.andWhere("sale.installmentFrequency = 'none'");
+      queryBuilder.andWhere('sale.promiseDate IS NOT NULL');
+    }
+    if (installmentsOnly) {
+      queryBuilder.andWhere('sale.paymentStatus != :installmentPaidStatus', { installmentPaidStatus: 'completed' });
+      queryBuilder.andWhere("sale.installmentFrequency != 'none'");
+      queryBuilder.andWhere('sale.nextDueDate IS NOT NULL');
+    }
+
     if (filterDto?.date) {
-      queryBuilder.andWhere('DATE(sale.createdAt) = DATE(:date)', { date: filterDto.date });
+      if (dueDateColumn) {
+        queryBuilder.andWhere(`${dueDateColumn} = :date`, { date: filterDto.date });
+      } else {
+        queryBuilder.andWhere('DATE(sale.createdAt) = DATE(:date)', { date: filterDto.date });
+      }
     } else {
       if (filterDto?.dateFrom) {
-        queryBuilder.andWhere('DATE(sale.createdAt) >= DATE(:dateFrom)', { dateFrom: filterDto.dateFrom });
+        if (dueDateColumn) {
+          queryBuilder.andWhere(`${dueDateColumn} >= :dateFrom`, { dateFrom: filterDto.dateFrom });
+        } else {
+          queryBuilder.andWhere('DATE(sale.createdAt) >= DATE(:dateFrom)', { dateFrom: filterDto.dateFrom });
+        }
       }
       if (filterDto?.dateTo) {
-        queryBuilder.andWhere('DATE(sale.createdAt) <= DATE(:dateTo)', { dateTo: filterDto.dateTo });
+        if (dueDateColumn) {
+          queryBuilder.andWhere(`${dueDateColumn} <= :dateTo`, { dateTo: filterDto.dateTo });
+        } else {
+          queryBuilder.andWhere('DATE(sale.createdAt) <= DATE(:dateTo)', { dateTo: filterDto.dateTo });
+        }
       }
     }
     if (filterDto?.paymentStatus) {
       queryBuilder.andWhere('sale.paymentStatus = :paymentStatus', { paymentStatus: filterDto.paymentStatus });
+    }
+    const statusFilter = filterDto?.promiseStatus || (installmentsOnly ? filterDto?.installmentStatus : undefined);
+    if (statusFilter) {
+      const today = toIsoDate(todayDate());
+      const statusDateColumn = dueDateColumn || 'sale.promiseDate';
+      if (statusFilter === 'overdue') {
+        queryBuilder.andWhere(`${statusDateColumn} < :statusToday`, { statusToday: today });
+      } else if (statusFilter === 'dueToday') {
+        queryBuilder.andWhere(`${statusDateColumn} = :statusToday`, { statusToday: today });
+      } else if (statusFilter === 'upcoming') {
+        queryBuilder.andWhere(`${statusDateColumn} > :statusToday`, { statusToday: today });
+      } else if (statusFilter === 'pending' || statusFilter === 'partial') {
+        queryBuilder.andWhere('sale.paymentStatus = :statusPaymentStatus', {
+          statusPaymentStatus: statusFilter,
+        });
+      }
     }
     if (filterDto?.customerId) {
       queryBuilder.andWhere('sale.customer_id = :customerId', { customerId: Number(filterDto.customerId) });
@@ -227,6 +274,14 @@ export class SalesService {
         WHERE categoryItems.sale_id = sale.id AND ic.category_id = :categoryId
       )`, { categoryId });
     }
+    const itemTypeId = Number(filterDto?.itemTypeId);
+    if (itemTypeId) {
+      queryBuilder.andWhere(`EXISTS (
+        SELECT 1 FROM sale_items typeItems
+        INNER JOIN items typeItem ON typeItem.id = typeItems.item_id
+        WHERE typeItems.sale_id = sale.id AND typeItem.item_type_id = :itemTypeId
+      )`, { itemTypeId });
+    }
   }
 
   async findAll(filterDto?: FilterDto, shopId?: number) {
@@ -239,7 +294,13 @@ export class SalesService {
     applyTenantScope(queryBuilder, 'sale');
     applyShopScope(queryBuilder, 'sale', shopId);
     this.applyListFilters(queryBuilder, filterDto);
-    queryBuilder.orderBy('sale.createdAt', 'DESC');
+    if (filterDto?.promisesOnly === 'true' || filterDto?.promisesOnly === '1') {
+      queryBuilder.orderBy('sale.promiseDate', 'ASC').addOrderBy('sale.createdAt', 'DESC');
+    } else if (filterDto?.installmentsOnly === 'true' || filterDto?.installmentsOnly === '1') {
+      queryBuilder.orderBy('sale.nextDueDate', 'ASC').addOrderBy('sale.createdAt', 'DESC');
+    } else {
+      queryBuilder.orderBy('sale.createdAt', 'DESC');
+    }
 
     const page = filterDto?.page ? Number(filterDto.page) : undefined;
     const limit = filterDto?.limit ? Number(filterDto.limit) : undefined;
@@ -493,5 +554,40 @@ export class SalesService {
       totalProfit: parseFloat(result?.totalProfit || '0') || 0,
       outstanding: Math.max(0, parseFloat(result?.outstanding || '0') || 0),
     };
+  }
+
+  async getTotalsByType(filterDto?: FilterDto, shopId?: number): Promise<Array<{
+    itemTypeId: number | null;
+    itemTypeName: string;
+    totalAmount: number;
+    totalProfit: number;
+  }>> {
+    const queryBuilder = this.salesRepository.createQueryBuilder('sale')
+      .innerJoin('sale.saleItems', 'saleItems')
+      .innerJoin('saleItems.item', 'item')
+      .leftJoin('item.itemType', 'itemType')
+      .leftJoin('sale.customer', 'customer')
+      .where('sale.is_archived = :archived', { archived: false })
+      .andWhere('saleItems.is_archived = :itemArchived', { itemArchived: false });
+    applyTenantScope(queryBuilder, 'sale');
+    applyShopScope(queryBuilder, 'sale', shopId);
+    this.applyListFilters(queryBuilder, filterDto);
+
+    const rows = await queryBuilder
+      .select('itemType.id', 'itemTypeId')
+      .addSelect('itemType.name', 'itemTypeName')
+      .addSelect('SUM(saleItems.amount)', 'totalAmount')
+      .addSelect('SUM(saleItems.profit)', 'totalProfit')
+      .groupBy('itemType.id')
+      .addGroupBy('itemType.name')
+      .orderBy('itemType.name', 'ASC')
+      .getRawMany();
+
+    return rows.map((row) => ({
+      itemTypeId: row.itemTypeId == null ? null : Number(row.itemTypeId),
+      itemTypeName: row.itemTypeName || 'No type',
+      totalAmount: parseFloat(row.totalAmount || '0') || 0,
+      totalProfit: parseFloat(row.totalProfit || '0') || 0,
+    }));
   }
 }

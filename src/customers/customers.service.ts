@@ -51,7 +51,7 @@ export class CustomersService {
   async resolveForShop(
     shopId: number,
     customerId?: number,
-    newCustomer?: { name: string; phone?: string; email?: string; address?: string },
+    newCustomer?: { name: string; phone?: string; email?: string; address?: string; cnic?: string },
     em?: EntityManager,
   ): Promise<Customer | null> {
     const customerRepo = em ? em.getRepository(Customer) : this.customersRepository;
@@ -62,6 +62,7 @@ export class CustomersService {
         phone: newCustomer.phone?.trim() || null,
         email: newCustomer.email?.trim() || null,
         address: newCustomer.address?.trim() || null,
+        cnic: newCustomer.cnic?.trim() || null,
       });
       stampOwnership(created);
       const shop = await shopRepo.findOne({ where: tenantWhere({ id: shopId }) });

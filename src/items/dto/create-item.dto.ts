@@ -4,6 +4,7 @@ export class CreateItemDto {
   categories: number[];
   storeId?: number;
   shopId?: number;
+  itemTypeId?: number | null;
   location?: string;
   uniqueIdentifier?: string;
   condition?: string;
