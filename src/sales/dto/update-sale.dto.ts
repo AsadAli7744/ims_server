@@ -34,4 +34,10 @@ export class UpdateSaleDto {
   @IsNumber()
   @Min(0.01)
   installmentAmount?: number | null;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  installmentMonths?: number | null;
 }

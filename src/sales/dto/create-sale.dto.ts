@@ -66,4 +66,10 @@ export class CreateSaleDto {
   @IsNumber()
   @Min(0.01)
   installmentAmount?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  installmentMonths?: number;
 }

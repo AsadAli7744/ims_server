@@ -49,6 +49,9 @@ export class Sale {
   @Column('decimal', { precision: 10, scale: 2, nullable: true })
   installmentAmount: number | null;
 
+  @Column({ type: 'int', nullable: true })
+  installmentMonths: number | null;
+
   @Column({ type: 'date', nullable: true })
   nextDueDate: string | null;
 

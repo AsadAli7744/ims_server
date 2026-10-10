@@ -59,8 +59,20 @@ export class SalesService {
     promiseDate?: string | null;
     installmentFrequency?: InstallmentFrequency;
     installmentAmount?: number | null;
+    installmentMonths?: number | null;
   }): void {
     applyCreditTerms(sale, sale.totalAmount, input);
+    if (sale.paymentStatus === 'completed' || sale.installmentFrequency === 'none') {
+      sale.installmentMonths = null;
+      return;
+    }
+    if (input.installmentMonths !== undefined) {
+      const months = input.installmentMonths == null ? null : Number(input.installmentMonths);
+      if (months != null && (!Number.isFinite(months) || months < 1)) {
+        throw new BadRequestException('Installment months must be at least 1');
+      }
+      sale.installmentMonths = months;
+    }
   }
 
   async create(createSaleDto: CreateSaleDto): Promise<Sale> {
@@ -138,6 +150,7 @@ export class SalesService {
         promiseDate: createSaleDto.promiseDate,
         installmentFrequency: createSaleDto.installmentFrequency,
         installmentAmount: createSaleDto.installmentAmount,
+        installmentMonths: createSaleDto.installmentMonths,
       });
       await saleRepo.save(savedSale);
 
@@ -414,7 +427,8 @@ export class SalesService {
         updateSaleDto.amountPaid !== undefined ||
         updateSaleDto.promiseDate !== undefined ||
         updateSaleDto.installmentFrequency !== undefined ||
-        updateSaleDto.installmentAmount !== undefined
+        updateSaleDto.installmentAmount !== undefined ||
+        updateSaleDto.installmentMonths !== undefined
       );
       if (paymentTouched) {
         this.applyCreditTerms(existingSale, {
@@ -422,6 +436,7 @@ export class SalesService {
           promiseDate: updateSaleDto.promiseDate,
           installmentFrequency: updateSaleDto.installmentFrequency,
           installmentAmount: updateSaleDto.installmentAmount,
+          installmentMonths: updateSaleDto.installmentMonths,
         });
       } else if (updateSaleDto.items !== undefined) {
         const total = money(existingSale.totalAmount);
@@ -433,6 +448,7 @@ export class SalesService {
           existingSale.promiseDate = null;
           existingSale.installmentFrequency = 'none';
           existingSale.installmentAmount = null;
+          existingSale.installmentMonths = null;
         }
       }
 
@@ -502,6 +518,7 @@ export class SalesService {
         sale.promiseDate = null;
         sale.installmentFrequency = 'none';
         sale.installmentAmount = null;
+        sale.installmentMonths = null;
       } else if (sale.installmentFrequency && sale.installmentFrequency !== 'none') {
         const from = toDateOnly(sale.nextDueDate) || todayDate();
         sale.nextDueDate = toIsoDate(advanceDueDate(from, sale.installmentFrequency));
