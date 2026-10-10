@@ -34,13 +34,20 @@ export class ItemTypesService {
       throw new BadRequestException('Shop is required');
     }
     assertShopAccess(dto.shopId);
-    const shop = await this.shopRepository.findOne({ where: tenantWhere({ id: dto.shopId }) });
+    const shop = await this.shopRepository.findOne({
+      where: tenantWhere({ id: dto.shopId }),
+      relations: ['tenant'],
+    });
     if (!shop) {
       throw new BadRequestException('Shop not found');
     }
+    const tenantId = shop.tenant?.id;
+    if (!tenantId) {
+      throw new BadRequestException('Shop has no organization assigned');
+    }
 
     const itemType = this.itemTypesRepository.create({ name });
-    stampOwnership(itemType);
+    stampOwnership(itemType, tenantId);
     itemType.shop = shop;
     return this.itemTypesRepository.save(itemType);
   }
@@ -84,11 +91,18 @@ export class ItemTypesService {
     }
     if (dto.shopId !== undefined) {
       assertShopAccess(dto.shopId);
-      const shop = await this.shopRepository.findOne({ where: tenantWhere({ id: dto.shopId }) });
+      const shop = await this.shopRepository.findOne({
+        where: tenantWhere({ id: dto.shopId }),
+        relations: ['tenant'],
+      });
       if (!shop) {
         throw new BadRequestException('Shop not found');
       }
+      if (!shop.tenant?.id) {
+        throw new BadRequestException('Shop has no organization assigned');
+      }
       itemType.shop = shop;
+      itemType.tenant = shop.tenant;
     }
     await this.itemTypesRepository.save(itemType);
     return this.findOne(id);
